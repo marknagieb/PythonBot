@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 import requests
 from requests import get
+import asyncio
 import openai
 import json
 import os
@@ -86,7 +87,48 @@ async def on_message(message):
         else:
             print("Empty response from OpenAI API")
 
-# AI end    
+# AI end
+
+
+# Trivia
+
+# Define a function to retrieve a random trivia question and answer
+def get_trivia_question():
+    response = requests.get("https://opentdb.com/api.php?amount=1&type=multiple")
+    question_data = response.json()["results"][0]
+    question = question_data["question"]
+    correct_answer = question_data["correct_answer"]
+    incorrect_answers = question_data["incorrect_answers"]
+    answers = [correct_answer] + incorrect_answers
+    return question, answers, correct_answer
+
+# Define the trivia game command
+@client.tree.command()
+async def trivia(interaction: discord.Interaction):
+    if interaction.channel.name != 'trivia':
+        await interaction.response.send_message(content="This command can only be used in the #trivia channel.", ephemeral=True)
+        return
+    question, answers, correct_answer = get_trivia_question()
+    answer_choices = "\n".join([f"{i+1}. {answer}" for i, answer in enumerate(answers)])
+    await interaction.response.send_message(content=f"**Trivia Question:**\n{question}\n\n**Answer Choices:**\n{answer_choices}", ephemeral=False)
+
+    # Define a function to check the user's answer
+    def check_answer(message):
+        return message.author == interaction.user and message.channel == interaction.channel
+
+    # Wait for the user's answer
+    try:
+        message = await client.wait_for("message", check=check_answer, timeout=20)
+    except asyncio.TimeoutError:
+        await interaction.followup.send("Time's up! The correct answer is: " + correct_answer, ephemeral=False)
+    else:
+        user_answer = message.content.lower()
+        if user_answer == correct_answer.lower():
+            await interaction.followup.send("You got it right!", ephemeral=False)
+        else:
+            await interaction.followup.send("Sorry, the correct answer is: " + correct_answer, ephemeral=False)
+
+# Trivia end    
 
 # MEME
 class NextButton(discord.ui.View):
